@@ -1,0 +1,19 @@
+# Environment Variables
+.env
+
+# Virtual Environment
+venv/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# State & Logs
+bot_state.json
+bot_log.txt
+
+# OS files
+.DS_Store
+Thumbs.db
