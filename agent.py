@@ -101,9 +101,7 @@ def post_to_square(content, task_name):
     return False
 
 def main():
-    print(f"--- Bot Execution Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ---")
-    state = load_state()
-    current_time = time.time()
+    print(f"🚀 Bot Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
     if not NVIDIA_API_KEY:
         print("❌ NVIDIA_API_KEY missing!")
@@ -115,63 +113,75 @@ def main():
         base_url="https://integrate.api.nvidia.com/v1"
     )
 
-    news_posted_now = False
+    while True:
+        print(f"\n--- Checking Tasks: {datetime.now().strftime('%H:%M:%S')} ---")
+        state = load_state()
+        current_time = time.time()
+        news_posted_now = False
 
-    # --- TASK 1: WORLD NEWS ---
-    news_passed = current_time - state["news_task"]["last_time"]
-    if news_passed >= state["news_task"]["next_delay"]:
-        print("🌍 Preparing World News...")
-        news = get_latest_news(state["history"])
-        if news:
-            prompt = (
-                f"Global News Context:\n" + "\n".join(news) + "\n\n"
-                "Task: Write a crisp, no-nonsense world news post for Binance Square.\n"
-                "Style Instructions:\n"
-                "- Write like a real human trader/analyst, NOT a bot.\n"
-                "- Use 2-3 short, punchy paragraphs.\n"
-                "- Focus on facts and direct impact. Avoid flowery words like 'staggering' or 'unwavering'.\n"
-                "- Include 2-3 subtle emojis. NO bold, NO hashtags, NO dollar signs.\n"
-                "- Start with a strong, direct headline.\n"
-                "- CRITICAL: Each line must NOT exceed 10-15 words. Break longer sentences into multiple lines."
-            )
-            resp = llm.invoke(prompt)
-            if post_to_square(resp.content, "World News"):
-                state["news_task"]["last_time"] = current_time
-                state["news_task"]["next_delay"] = random.randint(4*3600, 6*3600)
-                state["history"].extend(news)
-                news_posted_now = True
+        # --- TASK 1: WORLD NEWS ---
+        news_passed = current_time - state["news_task"]["last_time"]
+        if news_passed >= state["news_task"]["next_delay"]:
+            print("🌍 Time for World News...")
+            news = get_latest_news(state["history"])
+            if news:
+                prompt = (
+                    f"Global News Context:\n" + "\n".join(news) + "\n\n"
+                    "Task: Write a crisp, no-nonsense world news post for Binance Square.\n"
+                    "Style Instructions:\n"
+                    "- Write like a real human trader/analyst, NOT a bot.\n"
+                    "- Use 2-3 short, punchy paragraphs.\n"
+                    "- Focus on facts and direct impact. Avoid flowery words like 'staggering' or 'unwavering'.\n"
+                    "- Include 2-3 subtle emojis. NO bold, NO hashtags, NO dollar signs.\n"
+                    "- Start with a strong, direct headline.\n"
+                    "- CRITICAL: Each line must NOT exceed 10-15 words. Break longer sentences into multiple lines."
+                )
+                resp = llm.invoke(prompt)
+                if post_to_square(resp.content, "World News"):
+                    state["news_task"]["last_time"] = time.time()
+                    state["news_task"]["next_delay"] = random.randint(4*3600, 6*3600)
+                    state["history"].extend(news)
+                    news_posted_now = True
+        else:
+            wait_h = (state["news_task"]["next_delay"] - news_passed) / 3600
+            print(f"⏳ World News: Waiting {wait_h:.1f} more hours.")
 
-    if news_posted_now:
-        print("⏳ Delaying 2 minutes...")
-        time.sleep(120)
+        if news_posted_now:
+            print("⏳ Delaying 2 minutes before next check...")
+            save_state(state)
+            time.sleep(120)
+            current_time = time.time() # Update time after sleep
 
-    # --- TASK 2: TOP GAINERS ---
-    gainers_passed = time.time() - state["gainers_task"]["last_time"]
-    if gainers_passed >= state["gainers_task"]["next_delay"]:
-        print("📈 Preparing Gainer Analysis...")
-        gainers = get_top_gainers()
-        if gainers:
-            gainers_text = "\n".join([f"{g['symbol']}: {g['priceChangePercent']}%" for g in gainers])
-            prompt = (
-                f"Market Data:\n{gainers_text}\n\n"
-                "Task: Write a crisp, punchy market gainer analysis for Binance Square.\n"
-                "Style Instructions:\n"
-                "- Be direct. No fluff, no 'potential', no 'thrilling ride'.\n"
-                "- Focus on the momentum and price action only.\n"
-                "- Use short sentences. 2 paragraphs max.\n"
-                "- No bold, No hashtags, No dollar signs.\n"
-                "- Use ONE of the attractive styles from post-style.md as a structural guide but keep text minimal.\n"
-                "- CRITICAL: Each line must NOT exceed 10-15 words. Break longer sentences into multiple lines."
-            )
-            resp = llm.invoke(prompt)
-            if post_to_square(resp.content, "Top Gainers"):
-                state["gainers_task"]["last_time"] = time.time()
-                state["gainers_task"]["next_delay"] = random.randint(7*3600, 8*3600)
-        wait_m = int((state["gainers_task"]["next_delay"] - gainers_passed) // 60)
-        print(f"⏳ Gainers task: Waiting {wait_m} more minutes.")
+        # --- TASK 2: TOP GAINERS ---
+        gainers_passed = time.time() - state["gainers_task"]["last_time"]
+        if gainers_passed >= state["gainers_task"]["next_delay"]:
+            print("📈 Time for Gainer Analysis...")
+            gainers = get_top_gainers()
+            if gainers:
+                gainers_text = "\n".join([f"{g['symbol']}: {g['priceChangePercent']}%" for g in gainers])
+                prompt = (
+                    f"Market Data:\n{gainers_text}\n\n"
+                    "Task: Write a crisp, punchy market gainer analysis for Binance Square.\n"
+                    "Style Instructions:\n"
+                    "- Be direct. No fluff, no 'potential', no 'thrilling ride'.\n"
+                    "- Focus on the momentum and price action only.\n"
+                    "- Use short sentences. 2 paragraphs max.\n"
+                    "- No bold, No hashtags, No dollar signs.\n"
+                    "- Use ONE of the attractive styles from post-style.md as a structural guide but keep text minimal.\n"
+                    "- CRITICAL: Each line must NOT exceed 10-15 words. Break longer sentences into multiple lines."
+                )
+                resp = llm.invoke(prompt)
+                if post_to_square(resp.content, "Top Gainers"):
+                    state["gainers_task"]["last_time"] = time.time()
+                    state["gainers_task"]["next_delay"] = random.randint(7*3600, 8*3600)
+        else:
+            wait_h = (state["gainers_task"]["next_delay"] - gainers_passed) / 3600
+            print(f"⏳ Gainers task: Waiting {wait_h:.1f} more hours.")
 
-    save_state(state)
-    print("--- Execution Finished ---")
+        save_state(state)
+        print("😴 Sleeping for 10 minutes before next cycle...")
+        time.sleep(600) # Check every 10 minutes
+
 
 if __name__ == "__main__":
     main()
