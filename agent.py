@@ -120,14 +120,19 @@ def main():
     # --- TASK 1: WORLD NEWS ---
     news_passed = current_time - state["news_task"]["last_time"]
     if news_passed >= state["news_task"]["next_delay"]:
-        print("🌍 News task is DUE. Fetching...")
+        print("🌍 Preparing World News...")
         news = get_latest_news(state["history"])
         if news:
             prompt = (
                 f"Global News Context:\n" + "\n".join(news) + "\n\n"
-                "Task: Write an attractive world news analysis for Binance Square.\n"
-                "Style: Use custom attractive styles (🚨 BREAKING, 📈 Update, etc.).\n"
-                "RULES: NO bold, NO bullets, NO hashtags, NO dollar signs."
+                "Task: Write a crisp, no-nonsense world news post for Binance Square.\n"
+                "Style Instructions:\n"
+                "- Write like a real human trader/analyst, NOT a bot.\n"
+                "- Use 2-3 short, punchy paragraphs.\n"
+                "- Focus on facts and direct impact. Avoid flowery words like 'staggering' or 'unwavering'.\n"
+                "- Include 2-3 subtle emojis. NO bold, NO hashtags, NO dollar signs.\n"
+                "- Start with a strong, direct headline.\n"
+                "- CRITICAL: Each line must NOT exceed 10-15 words. Break longer sentences into multiple lines."
             )
             resp = llm.invoke(prompt)
             if post_to_square(resp.content, "World News"):
@@ -135,9 +140,6 @@ def main():
                 state["news_task"]["next_delay"] = random.randint(4*3600, 6*3600)
                 state["history"].extend(news)
                 news_posted_now = True
-    else:
-        wait_m = int((state["news_task"]["next_delay"] - news_passed) // 60)
-        print(f"⏳ News task: Waiting {wait_m} more minutes.")
 
     if news_posted_now:
         print("⏳ Delaying 2 minutes...")
@@ -146,21 +148,25 @@ def main():
     # --- TASK 2: TOP GAINERS ---
     gainers_passed = time.time() - state["gainers_task"]["last_time"]
     if gainers_passed >= state["gainers_task"]["next_delay"]:
-        print("📈 Gainers task is DUE. Fetching ticker data...")
+        print("📈 Preparing Gainer Analysis...")
         gainers = get_top_gainers()
         if gainers:
             gainers_text = "\n".join([f"{g['symbol']}: {g['priceChangePercent']}%" for g in gainers])
             prompt = (
                 f"Market Data:\n{gainers_text}\n\n"
-                "Task: Write an attractive market gainer analysis for Binance Square.\n"
-                "Style: Use custom attractive styles (🚀 Leaders, 🔥 Momentum, etc.).\n"
-                "RULES: NO bold, NO hashtags, NO dollar signs, NO lists."
+                "Task: Write a crisp, punchy market gainer analysis for Binance Square.\n"
+                "Style Instructions:\n"
+                "- Be direct. No fluff, no 'potential', no 'thrilling ride'.\n"
+                "- Focus on the momentum and price action only.\n"
+                "- Use short sentences. 2 paragraphs max.\n"
+                "- No bold, No hashtags, No dollar signs.\n"
+                "- Use ONE of the attractive styles from post-style.md as a structural guide but keep text minimal.\n"
+                "- CRITICAL: Each line must NOT exceed 10-15 words. Break longer sentences into multiple lines."
             )
             resp = llm.invoke(prompt)
             if post_to_square(resp.content, "Top Gainers"):
                 state["gainers_task"]["last_time"] = time.time()
                 state["gainers_task"]["next_delay"] = random.randint(7*3600, 8*3600)
-    else:
         wait_m = int((state["gainers_task"]["next_delay"] - gainers_passed) // 60)
         print(f"⏳ Gainers task: Waiting {wait_m} more minutes.")
 
