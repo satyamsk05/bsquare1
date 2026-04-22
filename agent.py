@@ -88,8 +88,10 @@ def post_to_square(content, task_name):
         res = requests.post(BINANCE_SQUARE_URL, headers=headers, json=payload)
         result = res.json()
         if result.get("code") == "000000":
-            msg = f"✅ *{task_name} Posted!*\n\nID: `{result.get('data', {}).get('id')}`\n\n_Bot is running smoothly._"
-            print(f"✅ {task_name} Posted! ID: {result.get('data', {}).get('id')}")
+            post_id = result.get('data', {}).get('id')
+            post_url = f"https://www.binance.com/square/post/{post_id}"
+            msg = f"✅ *{task_name} Posted!*\n\nLink: {post_url}\n\n_Bot is running smoothly._"
+            print(f"✅ {task_name} Posted! Link: {post_url}")
             send_telegram_msg(msg)
             return True
         else:
