@@ -102,6 +102,26 @@ def post_to_square(content, task_name):
         send_telegram_msg(f"❌ *Connection Error ({task_name})*:\n{e}")
     return False
 
+def limit_words_per_line(text, max_words=12):
+    """Ensures each line has a maximum number of words"""
+    lines = text.split('\n')
+    new_lines = []
+    for line in lines:
+        words = line.split()
+        if not words:
+            new_lines.append("")
+            continue
+        
+        current_line = []
+        for word in words:
+            current_line.append(word)
+            if len(current_line) >= max_words:
+                new_lines.append(" ".join(current_line))
+                current_line = []
+        if current_line:
+            new_lines.append(" ".join(current_line))
+    return "\n".join(new_lines)
+
 def main():
     print(f"🚀 Bot Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
@@ -132,14 +152,15 @@ def main():
                     "Task: Write a crisp, no-nonsense world news post for Binance Square.\n"
                     "Style Instructions:\n"
                     "- Write like a real human trader/analyst, NOT a bot.\n"
-                    "- Use 2-3 short, punchy paragraphs.\n"
-                    "- Focus on facts and direct impact. Avoid flowery words like 'staggering' or 'unwavering'.\n"
+                    "- Focus on facts and direct impact.\n"
                     "- Include 2-3 subtle emojis. NO bold, NO hashtags, NO dollar signs.\n"
                     "- Start with a strong, direct headline.\n"
-                    "- CRITICAL: Each line must NOT exceed 10-15 words. Break longer sentences into multiple lines."
+                    "- CRITICAL: Use VERY SHORT LINES. Max 10 words per line.\n"
+                    "- Break every sentence into 2-3 separate lines."
                 )
                 resp = llm.invoke(prompt)
-                if post_to_square(resp.content, "World News"):
+                formatted_content = limit_words_per_line(resp.content, max_words=10)
+                if post_to_square(formatted_content, "World News"):
                     state["news_task"]["last_time"] = time.time()
                     state["news_task"]["next_delay"] = random.randint(4*3600, 6*3600)
                     state["history"].extend(news)
@@ -167,13 +188,14 @@ def main():
                     "Style Instructions:\n"
                     "- Be direct. No fluff, no 'potential', no 'thrilling ride'.\n"
                     "- Focus on the momentum and price action only.\n"
-                    "- Use short sentences. 2 paragraphs max.\n"
                     "- No bold, No hashtags, No dollar signs.\n"
-                    "- Use ONE of the attractive styles from post-style.md as a structural guide but keep text minimal.\n"
-                    "- CRITICAL: Each line must NOT exceed 10-15 words. Break longer sentences into multiple lines."
+                    "- Use ONE of the attractive styles from post-style.md as a structural guide.\n"
+                    "- CRITICAL: Use VERY SHORT LINES. Max 10 words per line.\n"
+                    "- Break every sentence into 2-3 separate lines."
                 )
                 resp = llm.invoke(prompt)
-                if post_to_square(resp.content, "Top Gainers"):
+                formatted_content = limit_words_per_line(resp.content, max_words=10)
+                if post_to_square(formatted_content, "Top Gainers"):
                     state["gainers_task"]["last_time"] = time.time()
                     state["gainers_task"]["next_delay"] = random.randint(7*3600, 8*3600)
         else:
@@ -183,6 +205,7 @@ def main():
         save_state(state)
         print("😴 Sleeping for 10 minutes before next cycle...")
         time.sleep(600) # Check every 10 minutes
+
 
 
 if __name__ == "__main__":
