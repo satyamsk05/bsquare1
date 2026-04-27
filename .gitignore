@@ -12,6 +12,7 @@ __pycache__/
 
 # State & Logs
 bot_state.json
+post_log.jsonl
 bot_log.txt
 
 # OS files
