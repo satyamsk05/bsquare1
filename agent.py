@@ -24,7 +24,7 @@ NEWS_SOURCES = [
 STATE_FILE = "bot_state.json"
 POST_LOG_FILE = "post_log.jsonl"
 BINANCE_SQUARE_URL = "https://www.binance.com/bapi/composite/v1/public/pgc/openApi/content/add"
-BINANCE_TICKER_URL = "https://api.binance.com/api/v3/ticker/24hr"
+BINANCE_TICKER_URL = "https://fapi.binance.com/fapi/v1/ticker/24hr"
 STYLE_FILE = "post-style.md"
 
 def load_styles():
@@ -51,16 +51,22 @@ def init_styles():
     print(f"📋 Loaded {len(NEWS_STYLES)} news styles, {len(GAINER_STYLES)} gainer styles")
 
 def load_state():
-    if os.path.exists(STATE_FILE):
-        with open(STATE_FILE, "r") as f:
-            return json.load(f)
-    return {
+    state = {
         "news_task": {"last_time": time.time(), "next_delay": 300},
         "gainers_task": {"last_time": time.time(), "next_delay": 300},
+        "mini_task": {"last_time": time.time(), "next_delay": 300},
         "history": [],
         "last_news_style_idx": -1,
         "last_gainer_style_idx": -1,
     }
+    if os.path.exists(STATE_FILE):
+        try:
+            with open(STATE_FILE, "r") as f:
+                saved = json.load(f)
+                state.update(saved)
+        except Exception:
+            pass
+    return state
 
 def save_state(state):
     with open(STATE_FILE, "w") as f:
@@ -105,7 +111,8 @@ def get_top_gainers():
     try:
         response = requests.get(BINANCE_TICKER_URL, timeout=10)
         tickers = response.json()
-        usdt_pairs = [t for t in tickers if t['symbol'].endswith('USDT')]
+        # Filter for USDT pairs (excluding those with _ which are usually delivery/quarterly)
+        usdt_pairs = [t for t in tickers if t['symbol'].endswith('USDT') and '_' not in t['symbol']]
         sorted_pairs = sorted(usdt_pairs, key=lambda x: float(x['priceChangePercent']), reverse=True)
         # Random 1, 2, or 3 tokens
         count = random.randint(1, 3)
@@ -113,6 +120,17 @@ def get_top_gainers():
     except Exception as e:
         print(f"❌ Error fetching gainers: {e}")
         return []
+
+def mask_tokens(text):
+    """
+    Replaces token names in style examples with placeholders 
+    to prevent AI from hallucinating them in the output.
+    """
+    # Specific ones from post-style.md
+    text = re.sub(r"(CREAM|HYPER|APE|PEPE|WIF|BTC|ETH)\s*USDT", "[COIN] USDT", text, flags=re.IGNORECASE)
+    # Generic uppercase tokens
+    text = re.sub(r"\b[A-Z0-9]{3,}\s*USDT", "[COIN] USDT", text)
+    return text
 
 def clean_content(text):
     text = re.sub(r"#\w+", "", text)       # remove #hashtags
@@ -242,7 +260,7 @@ def main():
                 if success:
                     log_post("World News", content, post_url)
                     state["news_task"]["last_time"] = time.time()
-                    state["news_task"]["next_delay"] = random.randint(4 * 3600, 6 * 3600)
+                    state["news_task"]["next_delay"] = random.randint(6 * 3600, 7 * 3600)
                     # Store only titles in history (not full text with summary)
                     state["history"].extend([n.split('.')[0] for n in news])
                     state["last_news_style_idx"] = style_idx
@@ -269,10 +287,8 @@ def main():
                     for g in gainers
                 ])
                 style_block, style_idx = pick_style(GAINER_STYLES, state.get("last_gainer_style_idx", -1))
-                style_instruction = (
-                    f"\nIs structure ko follow karo (coin names/numbers apne data se replace karo):\n```\n{style_block}\n```\n"
-                    if style_block else ""
-                )
+                masked_style = mask_tokens(style_block)
+                
                 prompt = (
                     f"Today's top {count} gainer{'s' if count > 1 else ''}:\n{gainers_text}\n\n"
                     "Task: Write a punchy, natural gainer post for Binance Square in English.\n"
@@ -285,10 +301,12 @@ def main():
                     "- Write like an active trader watching the market live.\n"
                     "- USE COMPLETE NATURAL SENTENCES. Each line should have 7-12 words.\n"
                     "- Avoid mechanical line breaks; let the sentences flow naturally.\n"
-                    "- Only mention coins from the data provided.\n"
+                    "- CRITICAL: ONLY mention coins from the 'Today's top gainer' data provided above.\n"
+                    "- DO NOT mention CREAM, HYPER, or APE unless they are in the actual data above.\n"
+                    "- The tokens in the style example below like '[COIN] USDT' are placeholders; replace them with the real data provided.\n"
                     "- No hashtags, No dollar signs. % can be used freely.\n"
                     "- End with one line take — bullish, cautious, or neutral.\n"
-                    f"\nFollow this exact structure (Style {style_idx + 11}):\n```\n{style_block}\n```\n"
+                    f"\nFollow this exact structure (Style {style_idx + 11}):\n```\n{masked_style}\n```\n"
                 )
                 resp = llm.invoke(prompt)
                 content = clean_content(limit_words_per_line(resp.content, max_words=12))
@@ -296,11 +314,39 @@ def main():
                 if success:
                     log_post("Top Gainers", content, post_url)
                     state["gainers_task"]["last_time"] = time.time()
-                    state["gainers_task"]["next_delay"] = random.randint(7 * 3600, 8 * 3600)
+                    state["gainers_task"]["next_delay"] = random.randint(6 * 3600, 7 * 3600)
                     state["last_gainer_style_idx"] = style_idx
         else:
             wait_h = (state["gainers_task"]["next_delay"] - gainers_passed) / 3600
             print(f"⏳ Gainers task: Waiting {wait_h:.1f} more hours.")
+
+        # TASK 3: MINI POSTS (1-2 Lines)
+        mini_passed = time.time() - state["mini_task"]["last_time"]
+        if mini_passed >= state["mini_task"]["next_delay"]:
+            print("📝 Time for Mini Post...")
+            prompt = (
+                "Task: Write a very short, 1-2 line crypto insight or tip for Binance Square.\n"
+                "Rules:\n"
+                "- MAX 2 sentences.\n"
+                "- Write like a seasoned trader sharing a quick thought.\n"
+                "- Topic: Market psychology, risk management, or general crypto observation.\n"
+                "- No hashtags, no dollar signs.\n"
+                "- Use 1 emoji.\n"
+                "- CRITICAL: DO NOT repeat any of these previous topics/posts:\n" + "\n".join(state["history"][-20:]) + "\n"
+                "- Make it sound fresh and unique."
+            )
+            resp = llm.invoke(prompt)
+            content = clean_content(resp.content)
+            success, post_url = post_to_square(content, "Mini Post")
+            if success:
+                log_post("Mini Post", content, post_url)
+                state["mini_task"]["last_time"] = time.time()
+                state["mini_task"]["next_delay"] = random.randint(8 * 3600, 10 * 3600)
+                state["history"].append(content[:100]) # Store snippet in history
+                state["history"] = state["history"][-100:]
+        else:
+            wait_h = (state["mini_task"]["next_delay"] - mini_passed) / 3600
+            print(f"⏳ Mini Post: Waiting {wait_h:.1f} more hours.")
 
         save_state(state)
         print("😴 Sleeping for 10 minutes before next cycle...")
